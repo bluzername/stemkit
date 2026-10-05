@@ -131,6 +131,7 @@ export interface StemKitApi {
   cancelJob(videoId?: string): Promise<void>
   openExternal(url: string): Promise<void>
   getAppVersion(): Promise<string>
+  checkForUpdates(): Promise<{ ok: boolean }>
   installUpdate(): void
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
@@ -139,6 +140,7 @@ export interface StemKitApi {
   enginesStatus(): Promise<EngineStatus>
   fetchEngine(which: 'vocals' | 'ft' | 'gpu'): Promise<void>
   onUpdateEvent(cb: (ev: UpdateEvent) => void): () => void
+  onShowAbout(cb: () => void): () => void
   onJobEvent(cb: (ev: JobEvent) => void): () => void
   onEnvEvent(cb: (ev: EnvEvent) => void): () => void
   onSettingsChange(cb: (settings: AppSettings) => void): () => void

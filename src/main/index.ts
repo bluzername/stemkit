@@ -1,4 +1,12 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  dialog,
+  Menu,
+  type MenuItemConstructorOptions
+} from 'electron'
 import { join, normalize, extname } from 'path'
 import { existsSync, copyFileSync, mkdirSync, createReadStream, statSync } from 'fs'
 import { spawn } from 'child_process'
@@ -81,6 +89,57 @@ function sanitizeName(name: string): string {
   return clean.length > 0 ? clean.slice(0, 120) : 'stems'
 }
 
+function showAboutWindow(): void {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+  mainWindow.webContents.send('app:show-about')
+}
+
+function installApplicationMenu(): void {
+  const aboutItem: MenuItemConstructorOptions = {
+    label: 'About StemKit',
+    click: showAboutWindow
+  }
+  const template: MenuItemConstructorOptions[] =
+    process.platform === 'darwin'
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              aboutItem,
+              { type: 'separator' },
+              { role: 'services', submenu: [] },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' }
+            ]
+          },
+          {
+            label: 'Edit',
+            submenu: [
+              { role: 'undo' },
+              { role: 'redo' },
+              { type: 'separator' },
+              { role: 'cut' },
+              { role: 'copy' },
+              { role: 'paste' },
+              { role: 'selectAll' }
+            ]
+          },
+          { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'front' }] }
+        ]
+      : [
+          { label: 'File', submenu: [{ role: 'quit' }] },
+          { label: 'Help', submenu: [aboutItem] }
+        ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 function requireExportFfmpeg(): string {
   const ffmpeg = getStatus().ffmpeg.path
   if (!ffmpeg) {
@@ -145,6 +204,8 @@ app.whenReady().then(async () => {
     app.exit(ok ? 0 : 1)
     return
   }
+
+  installApplicationMenu()
 
   // existing install (e.g. right after an update): pre-fetch the engine
   // checkpoints the user opted into, in the background, so the first split
@@ -292,9 +353,18 @@ app.whenReady().then(async () => {
   initUpdater()
   // anonymous usage heartbeat: one POST per install per day
   maybePing()
-  ipcMain.handle('open-external', (_e, url: string) => {
-    if (/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(url)) {
-      shell.openExternal(url)
+  ipcMain.handle('open-external', (_e, value: string) => {
+    try {
+      const url = new URL(value)
+      const youtube = ['youtube.com', 'www.youtube.com', 'youtu.be'].includes(url.hostname)
+      const website = url.hostname === 'stemkit.pages.dev'
+      const projectGithub =
+        url.hostname === 'github.com' && /^\/danvelope\/stemkit(?:\/|$)/.test(url.pathname)
+      if (url.protocol === 'https:' && (youtube || website || projectGithub)) {
+        shell.openExternal(url.toString())
+      }
+    } catch {
+      // Ignore malformed or unsupported external URLs.
     }
   })
 
